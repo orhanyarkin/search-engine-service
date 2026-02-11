@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SearchEngine.Application/SearchEngine.Application.csproj" />
+    <Project Path="src/SearchEngine.Domain/SearchEngine.Domain.csproj" />
+    <Project Path="src/SearchEngine.Infrastructure/SearchEngine.Infrastructure.csproj" />
+    <Project Path="src/SearchEngine.WebAPI/SearchEngine.WebAPI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SearchEngine.IntegrationTests/SearchEngine.IntegrationTests.csproj" />
+    <Project Path="tests/SearchEngine.UnitTests/SearchEngine.UnitTests.csproj" />
+  </Folder>
+</Solution>

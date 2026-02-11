@@ -1,0 +1,49 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstats
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+bld/
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## Misc
+*.log
+*.tmp
+*.bak
+*.cache
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## User-specific
+appsettings.Development.json
+
+## Claude Code
+.claude/
+CLAUDE.md
+claude-code-prompts.md
+
+## Docker output
+docker-output.txt

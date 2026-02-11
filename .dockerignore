@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/.vs/
+**/node_modules/
+.git
+.gitignore
+.editorconfig
+*.md
+!README.md
+*.pdf
+tests/
+docker-compose*.yml
+.dockerignore
+Dockerfile

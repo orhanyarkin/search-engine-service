@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arama Motoru Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Fade-in animation for cards */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .card-animate {
+            animation: fadeInUp 0.35s ease-out both;
+        }
+
+        /* Spinner */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        /* Transition helpers */
+        .btn-hover { transition: all 0.2s ease; }
+        .btn-hover:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 antialiased">
+
+    <!-- Giriş Ekranı -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 bg-gray-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 w-full max-w-sm">
+            <div class="flex items-center justify-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900">Arama Motoru</h2>
+            </div>
+            <p class="text-sm text-gray-500 text-center mb-6">Devam etmek için giriş yapın</p>
+            <div id="loginError" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+            <div class="space-y-4">
+                <input id="loginUsername" type="text" placeholder="Kullanıcı adı"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input id="loginPassword" type="password" placeholder="Şifre"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <button id="loginBtn" onclick="handleLogin()"
+                    class="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition text-sm">
+                    Giriş Yap
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 text-center mt-4">Demo: admin / admin123</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <!-- Logo icon -->
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 leading-tight">Arama Motoru</h1>
+                    <p class="text-xs text-gray-500">Birden fazla sağlayıcıdan toplanan içerikler</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="syncBtn" onclick="syncProviders()"
+                    class="btn-hover inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg id="syncIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 014.51 15"/>
+                    </svg>
+                    <span id="syncText">Sağlayıcıları Senkronize Et</span>
+                </button>
+                <button id="logoutBtn" onclick="handleLogout()"
+                    class="btn-hover inline-flex items-center gap-2 px-4 py-2.5 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    Çıkış
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Search & Filters -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div class="flex flex-col lg:flex-row gap-4">
+                <!-- Search Input -->
+                <div class="flex-1 relative">
+                    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+                    </svg>
+                    <input id="searchInput" type="text" placeholder="İçerik ara..."
+                        class="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                </div>
+
+                <!-- Type Filter -->
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600 whitespace-nowrap">Tür:</label>
+                    <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" id="typeFilter">
+                        <button data-type="" class="type-btn px-4 py-3 text-sm font-medium bg-indigo-600 text-white transition">Tümü</button>
+                        <button data-type="video" class="type-btn px-4 py-3 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 border-l border-gray-300 transition">Video</button>
+                        <button data-type="article" class="type-btn px-4 py-3 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 border-l border-gray-300 transition">Makale</button>
+                    </div>
+                </div>
+
+                <!-- Sort Dropdown -->
+                <div class="flex items-center gap-2">
+                    <label for="sortSelect" class="text-sm font-medium text-gray-600 whitespace-nowrap">Sırala:</label>
+                    <select id="sortSelect"
+                        class="px-4 py-3 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition cursor-pointer">
+                        <option value="popularity">Popülerlik</option>
+                        <option value="relevance">İlgililik</option>
+                        <option value="recency">En Yeni</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Count -->
+        <div id="resultsInfo" class="mb-4 text-sm text-gray-500 hidden">
+            <span id="totalCount" class="font-semibold text-gray-700"></span> sonuçtan
+            <span id="showingFrom" class="font-semibold text-gray-700"></span>-<span id="showingTo" class="font-semibold text-gray-700"></span> arası gösteriliyor
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingState" class="hidden flex flex-col items-center justify-center py-20">
+            <div class="spinner"></div>
+            <p class="mt-4 text-sm text-gray-500">İçerik aranıyor...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20">
+            <svg class="w-20 h-20 text-gray-300 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v16.5c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
+            </svg>
+            <p class="text-lg font-semibold text-gray-500">Sonuç bulunamadı</p>
+            <p class="text-sm text-gray-400 mt-1">Aramanızı veya filtrelerinizi değiştirmeyi deneyin</p>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+        <!-- Pagination -->
+        <nav id="pagination" class="hidden mt-10 flex items-center justify-center gap-2"></nav>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 hidden transform transition-all duration-300 translate-y-4 opacity-0">
+        <div class="flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm font-medium" id="toastInner">
+            <span id="toastMsg"></span>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        // ==================== Config ====================
+        const API_BASE = '/api/v1';
+
+        // ==================== Auth ====================
+        let authToken = localStorage.getItem('authToken');
+
+        function getAuthHeaders() {
+            return authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+        }
+
+        function checkAuth() {
+            if (!authToken) {
+                document.getElementById('loginOverlay').classList.remove('hidden');
+                return false;
+            }
+            document.getElementById('loginOverlay').classList.add('hidden');
+            return true;
+        }
+
+        window.handleLogin = async function () {
+            var username = document.getElementById('loginUsername').value;
+            var password = document.getElementById('loginPassword').value;
+            var errorEl = document.getElementById('loginError');
+            var loginBtn = document.getElementById('loginBtn');
+            errorEl.classList.add('hidden');
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Giriş yapılıyor...';
+
+            try {
+                var response = await fetch(API_BASE + '/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password })
+                });
+                if (!response.ok) {
+                    errorEl.textContent = 'Geçersiz kullanıcı adı veya şifre';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                var data = await response.json();
+                authToken = data.token;
+                localStorage.setItem('authToken', authToken);
+                checkAuth();
+                fetchResults();
+            } catch (err) {
+                errorEl.textContent = 'Bağlantı hatası';
+                errorEl.classList.remove('hidden');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Giriş Yap';
+            }
+        };
+
+        window.handleLogout = function () {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            checkAuth();
+        };
+
+        // ==================== State ====================
+        let currentPage = 1;
+        let pageSize = 12;
+        let totalResults = 0;
+        let keyword = '';
+        let contentType = '';
+        let sortBy = 'popularity';
+        let debounceTimer = null;
+        let isSyncing = false;
+
+        // ==================== DOM References ====================
+        const searchInput    = document.getElementById('searchInput');
+        const sortSelect     = document.getElementById('sortSelect');
+        const resultsGrid    = document.getElementById('resultsGrid');
+        const loadingState   = document.getElementById('loadingState');
+        const emptyState     = document.getElementById('emptyState');
+        const resultsInfo    = document.getElementById('resultsInfo');
+        const showingFrom    = document.getElementById('showingFrom');
+        const showingTo      = document.getElementById('showingTo');
+        const totalCountEl   = document.getElementById('totalCount');
+        const pagination     = document.getElementById('pagination');
+        const syncBtn        = document.getElementById('syncBtn');
+        const syncIcon       = document.getElementById('syncIcon');
+        const syncText       = document.getElementById('syncText');
+        const typeButtons    = document.querySelectorAll('.type-btn');
+
+        // ==================== Event Listeners ====================
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                keyword = searchInput.value.trim();
+                currentPage = 1;
+                fetchResults();
+            }, 300);
+        });
+
+        sortSelect.addEventListener('change', function () {
+            sortBy = sortSelect.value;
+            currentPage = 1;
+            fetchResults();
+        });
+
+        typeButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                typeButtons.forEach(function (b) {
+                    b.classList.remove('bg-indigo-600', 'text-white');
+                    b.classList.add('bg-white', 'text-gray-700');
+                });
+                btn.classList.remove('bg-white', 'text-gray-700');
+                btn.classList.add('bg-indigo-600', 'text-white');
+                contentType = btn.getAttribute('data-type');
+                currentPage = 1;
+                fetchResults();
+            });
+        });
+
+        // ==================== API Calls ====================
+        async function fetchResults() {
+            showLoading();
+
+            var params = new URLSearchParams();
+            if (keyword) params.set('keyword', keyword);
+            if (contentType) params.set('type', contentType);
+            params.set('sortBy', sortBy);
+            params.set('page', currentPage.toString());
+            params.set('pageSize', pageSize.toString());
+
+            try {
+                var response = await fetch(API_BASE + '/search?' + params.toString(), {
+                    headers: getAuthHeaders()
+                });
+                if (response.status === 401) { window.handleLogout(); return; }
+                if (!response.ok) throw new Error('API returned ' + response.status);
+                var data = await response.json();
+                totalResults = data.totalCount || data.total || 0;
+                var items = data.items || data.data || data.contents || [];
+                renderResults(items);
+                renderPagination();
+                updateResultsInfo(items.length);
+            } catch (err) {
+                console.error('Fetch error:', err);
+                resultsGrid.innerHTML = '';
+                showEmpty();
+            }
+        }
+
+        window.syncProviders = async function () {
+            if (isSyncing) return;
+            isSyncing = true;
+            syncBtn.disabled = true;
+            syncIcon.classList.add('animate-spin');
+            syncText.textContent = 'Senkronize ediliyor...';
+
+            try {
+                var response = await fetch(API_BASE + '/providers/sync', {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (response.status === 401) { window.handleLogout(); return; }
+                if (!response.ok) throw new Error('Sync failed');
+                showToast('Sağlayıcılar başarıyla senkronize edildi', 'success');
+                currentPage = 1;
+                fetchResults();
+            } catch (err) {
+                console.error('Sync error:', err);
+                showToast('Sağlayıcı senkronizasyonu başarısız oldu', 'error');
+            } finally {
+                isSyncing = false;
+                syncBtn.disabled = false;
+                syncIcon.classList.remove('animate-spin');
+                syncText.textContent = 'Sağlayıcıları Senkronize Et';
+            }
+        };
+
+        // ==================== Rendering ====================
+        function renderResults(items) {
+            hideLoading();
+
+            if (!items || items.length === 0) {
+                resultsGrid.innerHTML = '';
+                showEmpty();
+                return;
+            }
+
+            hideEmpty();
+            resultsGrid.innerHTML = '';
+
+            items.forEach(function (item, index) {
+                var card = document.createElement('div');
+                card.className = 'card-animate bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col';
+                card.style.animationDelay = (index * 0.05) + 's';
+
+                var isVideo = (item.contentType || '').toLowerCase() === 'video';
+                var typeBadgeBg = isVideo ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
+                var typeLabel = isVideo ? 'Video' : 'Makale';
+                var typeIcon = isVideo
+                    ? '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+                    : '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/></svg>';
+
+                var score = item.finalScore != null ? parseFloat(item.finalScore).toFixed(1) : '--';
+                var providerName = item.sourceProvider || '';
+                var publishedDate = item.publishedAt || item.published_at || item.publicationDate || item.publication_date || '';
+                var relativeDate = publishedDate ? getRelativeTime(publishedDate) : '';
+
+                var tags = item.tags || item.categories || [];
+                var tagsHtml = '';
+                if (tags.length > 0) {
+                    tagsHtml = '<div class="flex flex-wrap gap-1.5 mt-3">';
+                    tags.forEach(function (tag) {
+                        tagsHtml += '<span class="inline-block px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">' + escapeHtml(tag) + '</span>';
+                    });
+                    tagsHtml += '</div>';
+                }
+
+                var metricsHtml = '';
+                if (isVideo) {
+                    var views = formatNumber(item.views || (item.metrics && item.metrics.views) || 0);
+                    var likes = formatNumber(item.likes || (item.metrics && item.metrics.likes) || 0);
+                    var duration = item.duration || (item.metrics && item.metrics.duration) || '';
+                    metricsHtml = '<div class="flex items-center gap-4 text-xs text-gray-500">'
+                        + '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' + views + '</span>'
+                        + '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>' + likes + '</span>'
+                        + (duration ? '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + escapeHtml(duration) + '</span>' : '')
+                        + '</div>';
+                } else {
+                    var readingTime = item.readingTime || item.reading_time || (item.metrics && item.metrics.reading_time) || '';
+                    var reactions = formatNumber(item.reactions || (item.metrics && item.metrics.reactions) || 0);
+                    var comments = formatNumber(item.comments || (item.metrics && item.metrics.comments) || 0);
+                    metricsHtml = '<div class="flex items-center gap-4 text-xs text-gray-500">'
+                        + (readingTime ? '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>' + escapeHtml(String(readingTime)) + ' min</span>' : '')
+                        + '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>' + reactions + '</span>'
+                        + '<span class="flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>' + comments + '</span>'
+                        + '</div>';
+                }
+
+                card.innerHTML =
+                    '<div class="p-5 flex flex-col flex-1">'
+                        // Top row: type badge + score
+                        + '<div class="flex items-center justify-between mb-3">'
+                            + '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg ' + typeBadgeBg + '">'
+                                + typeIcon + typeLabel
+                            + '</span>'
+                            + '<span class="inline-flex items-center gap-1 text-sm font-bold text-amber-500">'
+                                + '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'
+                                + score
+                            + '</span>'
+                        + '</div>'
+                        // Title
+                        + '<h3 class="text-base font-bold text-gray-900 leading-snug mb-2 line-clamp-2">' + escapeHtml(item.title || item.headline || 'Başlıksız') + '</h3>'
+                        // Provider + date
+                        + '<div class="flex items-center gap-2 text-xs text-gray-400 mb-4">'
+                            + (providerName ? '<span class="inline-block px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">' + escapeHtml(providerName) + '</span>' : '')
+                            + (relativeDate ? '<span>' + relativeDate + '</span>' : '')
+                        + '</div>'
+                        // Spacer
+                        + '<div class="mt-auto"></div>'
+                        // Metrics
+                        + metricsHtml
+                        // Tags
+                        + tagsHtml
+                    + '</div>';
+
+                resultsGrid.appendChild(card);
+            });
+        }
+
+        function renderPagination() {
+            var totalPages = Math.ceil(totalResults / pageSize);
+            if (totalPages <= 1) {
+                pagination.classList.add('hidden');
+                return;
+            }
+            pagination.classList.remove('hidden');
+            pagination.innerHTML = '';
+
+            // Previous button
+            var prevBtn = document.createElement('button');
+            prevBtn.className = 'btn-hover px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition';
+            prevBtn.textContent = 'Önceki';
+            prevBtn.disabled = currentPage <= 1;
+            prevBtn.addEventListener('click', function () {
+                if (currentPage > 1) { currentPage--; fetchResults(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+            });
+            pagination.appendChild(prevBtn);
+
+            // Page numbers
+            var pages = getPageNumbers(currentPage, totalPages);
+            pages.forEach(function (p) {
+                if (p === '...') {
+                    var ellipsis = document.createElement('span');
+                    ellipsis.className = 'px-2 py-2 text-sm text-gray-400 select-none';
+                    ellipsis.textContent = '...';
+                    pagination.appendChild(ellipsis);
+                } else {
+                    var pageBtn = document.createElement('button');
+                    var isActive = p === currentPage;
+                    pageBtn.className = 'btn-hover w-10 h-10 text-sm font-medium rounded-lg border transition '
+                        + (isActive
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50');
+                    pageBtn.textContent = p;
+                    pageBtn.addEventListener('click', (function (page) {
+                        return function () { currentPage = page; fetchResults(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+                    })(p));
+                    pagination.appendChild(pageBtn);
+                }
+            });
+
+            // Next button
+            var nextBtn = document.createElement('button');
+            nextBtn.className = 'btn-hover px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition';
+            nextBtn.textContent = 'Sonraki';
+            nextBtn.disabled = currentPage >= totalPages;
+            nextBtn.addEventListener('click', function () {
+                if (currentPage < totalPages) { currentPage++; fetchResults(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+            });
+            pagination.appendChild(nextBtn);
+        }
+
+        function updateResultsInfo(displayedCount) {
+            if (totalResults === 0) {
+                resultsInfo.classList.add('hidden');
+                return;
+            }
+            resultsInfo.classList.remove('hidden');
+            var from = (currentPage - 1) * pageSize + 1;
+            var to = from + displayedCount - 1;
+            showingFrom.textContent = from;
+            showingTo.textContent = to;
+            totalCountEl.textContent = totalResults;
+        }
+
+        // ==================== UI Helpers ====================
+        function showLoading() {
+            loadingState.classList.remove('hidden');
+            resultsGrid.innerHTML = '';
+            emptyState.classList.add('hidden');
+            pagination.classList.add('hidden');
+            resultsInfo.classList.add('hidden');
+        }
+
+        function hideLoading() {
+            loadingState.classList.add('hidden');
+        }
+
+        function showEmpty() {
+            emptyState.classList.remove('hidden');
+            pagination.classList.add('hidden');
+            resultsInfo.classList.add('hidden');
+        }
+
+        function hideEmpty() {
+            emptyState.classList.add('hidden');
+        }
+
+        function showToast(message, type) {
+            var toast = document.getElementById('toast');
+            var inner = document.getElementById('toastInner');
+            var msg = document.getElementById('toastMsg');
+
+            msg.textContent = message;
+            inner.className = 'flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm font-medium '
+                + (type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white');
+
+            toast.classList.remove('hidden');
+            requestAnimationFrame(function () {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+            });
+
+            setTimeout(function () {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(function () { toast.classList.add('hidden'); }, 300);
+            }, 3000);
+        }
+
+        // ==================== Utilities ====================
+        function escapeHtml(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function formatNumber(num) {
+            num = parseInt(num, 10);
+            if (isNaN(num)) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        function getRelativeTime(dateStr) {
+            try {
+                var date = new Date(dateStr);
+                var now = new Date();
+                var diffMs = now - date;
+                var diffSec = Math.floor(diffMs / 1000);
+                var diffMin = Math.floor(diffSec / 60);
+                var diffHour = Math.floor(diffMin / 60);
+                var diffDay = Math.floor(diffHour / 24);
+                var diffWeek = Math.floor(diffDay / 7);
+                var diffMonth = Math.floor(diffDay / 30);
+                var diffYear = Math.floor(diffDay / 365);
+
+                if (diffSec < 60) return 'az önce';
+                if (diffMin < 60) return diffMin + ' dk önce';
+                if (diffHour < 24) return diffHour + ' sa önce';
+                if (diffDay < 7) return diffDay + ' gün önce';
+                if (diffWeek < 5) return diffWeek + ' hf önce';
+                if (diffMonth < 12) return diffMonth + ' ay önce';
+                return diffYear + ' yıl önce';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function getPageNumbers(current, total) {
+            var pages = [];
+            if (total <= 7) {
+                for (var i = 1; i <= total; i++) pages.push(i);
+                return pages;
+            }
+            pages.push(1);
+            if (current > 3) pages.push('...');
+            var start = Math.max(2, current - 1);
+            var end = Math.min(total - 1, current + 1);
+            for (var j = start; j <= end; j++) pages.push(j);
+            if (current < total - 2) pages.push('...');
+            pages.push(total);
+            return pages;
+        }
+
+        // ==================== Init ====================
+        if (checkAuth()) {
+            fetchResults();
+        }
+    })();
+    </script>
+</body>
+</html>
