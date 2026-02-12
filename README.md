@@ -152,7 +152,7 @@ GET /health
 
 ```bash
 # Repo'yu klonla
-git clone https://github.com/<kullanici-adi>/search-engine-service.git
+git clone https://github.com/orhanyarkin/search-engine-service.git
 cd search-engine-service
 
 # Tüm servisleri ayağa kaldır
