@@ -2,7 +2,7 @@
 
 Birden fazla content provider'dan (JSON & XML) veri çeken, normalize eden, weighted scoring algoritması ile puanlayan ve REST API üzerinden sunan bir search engine servisi.
 
-## Teknoloji Stack'i
+## Tech Stacks
 
 | Katman | Teknoloji |
 |--------|-----------|
