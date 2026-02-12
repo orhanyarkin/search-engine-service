@@ -17,6 +17,19 @@ Birden fazla content provider'dan (JSON & XML) veri çeken, normalize eden, weig
 | API Docs | OpenAPI + Scalar UI |
 | Container | Docker + docker-compose |
 
+## Teknoloji Tercih Gerekçeleri
+
+| Teknoloji | Neden? |
+|-----------|--------|
+| **.NET 10** | LTS sürümü, Kestrel ile yüksek HTTP performansı, güçlü tip sistemi derleme zamanında hataları yakalar, EF Core + MediatR + FluentValidation ekosistemi backend geliştirmeyi hızlandırır |
+| **PostgreSQL** | Açık kaynak, production-grade RDBMS; `text[]` array tipi tag'ler için ideal, `EF.Functions.ILike` ile case-insensitive arama desteği, JSON/JSONB ile esnek veri modeli |
+| **Redis** | Sub-millisecond cache okuma, Decorator pattern ile repository'yi wrap ederek uygulama kodunu değiştirmeden cache katmanı ekleme imkanı; sync sonrası key-prefix bazlı invalidation |
+| **Elasticsearch** | BM25 scoring ile keyword relevance hesaplaması, fuzzy match (yazım hataları), prefix search ve wildcard sorguları — PostgreSQL ILIKE'a göre çok daha güçlü full-text search |
+| **RabbitMQ** | Sync sonrası cache invalidation ve Elasticsearch reindex işlemlerini ana akıştan ayırarak async event-driven mimari; MassTransit ile consumer bazlı mesaj tüketimi |
+| **Clean Architecture** | Domain ve Application katmanları infrastructure'a bağımsız; yeni provider eklemek tek bir `IContentProvider` implementasyonu, test'ler infrastructure mock'larıyla izole çalışır |
+| **MediatR (CQRS)** | Command/Query ayrımı ile read ve write path'leri bağımsız optimize etme; pipeline behavior ile cross-cutting concern'ler (validation, logging) merkezi yönetim |
+| **Docker** | Tek komutla 5 servis (API + PostgreSQL + Redis + Elasticsearch + RabbitMQ) ayağa kalkar; development/production ortam tutarlılığı sağlar |
+
 ## Mimari
 
 Clean Architecture prensiplerine uygun 4 katmanlı yapı:
@@ -91,13 +104,13 @@ FinalScore = (BaseScore × TypeCoefficient) + FreshnessScore + EngagementScore
 
 ### Search
 ```http
-GET /api/v1/search?keyword={keyword}&type={video|text}&sortBy={score|date}&page=1&pageSize=10
+GET /api/v1/search?keyword={keyword}&type={video|text}&sortBy={popularity|relevance|recency}&page=1&pageSize=10
 ```
 
 Query parameter'lar:
 - `keyword` — arama terimi (title ve tag'lerde arar)
 - `type` — içerik tipi filtresi: `video` veya `text`
-- `sortBy` — sıralama: `score` (varsayılan) veya `date`
+- `sortBy` — sıralama: `popularity` (varsayılan), `relevance` veya `recency`
 - `page` / `pageSize` — pagination
 
 ### Content Detail
@@ -146,9 +159,9 @@ docker-compose up --build
 ```
 
 Servisler:
-- **API:** http://localhost:8080
-- **Scalar API Docs:** http://localhost:8080/scalar/v1
-- **Dashboard:** http://localhost:8080/dashboard.html
+- **API:** http://localhost:5000
+- **Scalar API Docs:** http://localhost:5000/scalar/v1
+- **Dashboard:** http://localhost:5000
 - **RabbitMQ Management:** http://localhost:15672 (guest/guest)
 
 > **Not:** Port çakışması yaşarsanız (örn. Redis 6379 zaten kullanılıyorsa), local'de çalışan servisleri durdurun:
@@ -190,9 +203,9 @@ dotnet test tests/SearchEngine.IntegrationTests
 
 | Kategori | Test Sayısı | Kapsam |
 |----------|-------------|--------|
-| Unit Test'ler | 62 | Scoring, Adapter, Handler, Validator, Factory |
+| Unit Test'ler | 65 | Scoring, Adapter, Handler, Validator, Factory, Cache |
 | Integration Test'ler | 19 | API endpoint, Auth, Search, Sync, Health |
-| **Toplam** | **81** | |
+| **Toplam** | **84** | |
 
 #### Unit Test Detayı
 - `ScoringServiceTests` — Video ve article scoring hesaplamaları, freshness, engagement
@@ -220,14 +233,14 @@ Dashboard ve API endpoint'leri JWT Bearer token ile korunur.
 
 Token alma:
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
 Token kullanma:
 ```bash
-curl http://localhost:8080/api/v1/search?keyword=docker \
+curl http://localhost:5000/api/v1/search?keyword=docker \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -259,15 +272,16 @@ Sync süreci:
 
 ## Dashboard
 
-`http://localhost:8080/dashboard.html` adresinden erişilen minimal bir web UI:
+`http://localhost:5000` adresinden erişilen minimal bir web UI:
 
 - Login form (JWT auth)
-- Keyword search
-- Type filter (Video / Text / Tümü)
-- Sort (Score / Date)
+- Keyword search (Elasticsearch full-text)
+- Type filter (Video / Makale / Tümü)
+- Sort (Popülerlik / İlgililik / En Yeni)
 - Pagination
-- Content card'ları (score, type, metrics)
+- Content card'ları (score, type, metrics, tags)
 - Manuel sync butonu
+- Toast bildirimler
 
 ## Clean Code Yaklaşımı
 

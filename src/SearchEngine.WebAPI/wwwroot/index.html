@@ -266,6 +266,7 @@
             debounceTimer = setTimeout(function () {
                 keyword = searchInput.value.trim();
                 currentPage = 1;
+                updateSortSelect();
                 fetchResults();
             }, 300);
         });
@@ -275,6 +276,15 @@
             currentPage = 1;
             fetchResults();
         });
+
+        // Keyword girildiğinde otomatik olarak İlgililik sıralamasına geç
+        function updateSortSelect() {
+            if (keyword) {
+                sortSelect.value = 'relevance';
+                sortBy = 'relevance';
+            }
+            // Keyword silindiğinde kullanıcının mevcut seçimi korunur
+        }
 
         typeButtons.forEach(function (btn) {
             btn.addEventListener('click', function () {

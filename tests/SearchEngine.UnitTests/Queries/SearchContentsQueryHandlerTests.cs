@@ -179,4 +179,27 @@ public class SearchContentsQueryHandlerTests
         // Assert — keyword yoksa doğrudan DB
         _repositoryMock.Verify(r => r.SearchAsync(null, null, SortBy.Popularity, 1, 10, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_EsSearchThrows_ShouldFallbackToDb()
+    {
+        // Arrange — ES kullanılabilir ama arama sırasında hata fırlatıyor
+        _searchServiceMock.Setup(s => s.IsAvailableAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _searchServiceMock.Setup(s => s.SearchAsync("docker", null, SortBy.Popularity, 1, 10, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ES index bulunamadı"));
+
+        var dbContents = CreateSampleContents(2);
+        _repositoryMock.Setup(r => r.SearchAsync("docker", null, SortBy.Popularity, 1, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((dbContents, 2));
+
+        // Act
+        var query = new SearchContentsQuery("docker", null, SortBy.Popularity, 1, 10);
+        var result = await _handler.Handle(query, CancellationToken.None);
+
+        // Assert — ES hatası sonrası PostgreSQL'den sonuç döndü
+        result.Items.Should().HaveCount(2);
+        result.TotalCount.Should().Be(2);
+        _repositoryMock.Verify(r => r.SearchAsync("docker", null, SortBy.Popularity, 1, 10, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

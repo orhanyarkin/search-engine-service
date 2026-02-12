@@ -22,6 +22,7 @@ public class ProviderSyncServiceTests
     private readonly Mock<IContentProviderFactory> _factoryMock = new();
     private readonly Mock<IContentScorer> _scorerMock = new();
     private readonly Mock<IContentRepository> _repositoryMock = new();
+    private readonly Mock<ISearchService> _searchServiceMock = new();
     private readonly Mock<IPublishEndpoint> _publishMock = new();
     private readonly Mock<ILogger<ProviderSyncService>> _loggerMock = new();
     private readonly ProviderSyncService _sut;
@@ -34,6 +35,7 @@ public class ProviderSyncServiceTests
             _factoryMock.Object,
             _scorerMock.Object,
             _repositoryMock.Object,
+            _searchServiceMock.Object,
             _publishMock.Object,
             _loggerMock.Object,
             settings);
@@ -113,6 +115,43 @@ public class ProviderSyncServiceTests
         // Assert — RabbitMQ olayı yayınlandı
         _publishMock.Verify(p => p.Publish(
             It.Is<ProviderDataSyncedEvent>(e => e.ItemCount == 2),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_ShouldIndexToElasticsearch()
+    {
+        // Arrange
+        var provider = CreateMockProvider("Test", 3);
+        _factoryMock.Setup(f => f.GetAllProviders()).Returns([provider.Object]);
+        _scorerMock.Setup(s => s.CalculateScore(It.IsAny<Content>())).Returns(10);
+
+        // Act
+        await _sut.SyncAllAsync();
+
+        // Assert — ES doğrudan indekslendi
+        _searchServiceMock.Verify(s => s.IndexManyAsync(
+            It.Is<List<Content>>(l => l.Count == 3),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_EsIndexFails_ShouldStillSucceed()
+    {
+        // Arrange — ES indeksleme hata verir
+        var provider = CreateMockProvider("Test", 2);
+        _factoryMock.Setup(f => f.GetAllProviders()).Returns([provider.Object]);
+        _scorerMock.Setup(s => s.CalculateScore(It.IsAny<Content>())).Returns(10);
+        _searchServiceMock.Setup(s => s.IndexManyAsync(It.IsAny<List<Content>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("ES bağlantı hatası"));
+
+        // Act
+        var count = await _sut.SyncAllAsync();
+
+        // Assert — ES hatası sync'i bozmamalı, veri DB'ye kaydedilmeli
+        count.Should().Be(2);
+        _repositoryMock.Verify(r => r.UpsertManyAsync(
+            It.Is<List<Content>>(l => l.Count == 2),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

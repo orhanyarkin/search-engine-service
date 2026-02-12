@@ -61,16 +61,34 @@ public class ElasticsearchService : ISearchService
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var mustQueries = new List<Query>
+        // E-ticaret tarzı arama: prefix + fuzzy + wildcard kombinasyonu
+        // Her keyword uzunluğunda sonuç döner, en alakalı olanlar üstte sıralanır
+        var lowerKeyword = keyword.ToLowerInvariant();
+        var keywordQuery = new BoolQuery
         {
-            new MultiMatchQuery
+            Should = new Query[]
             {
-                Query = keyword,
-                Fields = new[] { "title^3", "tags" },
-                Fuzziness = new Fuzziness("AUTO"),
-                Type = TextQueryType.BestFields
-            }
+                // 1) Title prefix — "go" → "Go Programming...", "adv" → "Advanced..."
+                new MatchPhrasePrefixQuery("title"!) { Query = keyword, Boost = 5 },
+                // 2) Tags prefix — "dev" → "devops", "prog" → "programming"
+                new MatchPhrasePrefixQuery("tags"!) { Query = keyword, Boost = 3 },
+                // 3) Fuzzy multi-match — yazım hataları ve tam eşleşme
+                new MultiMatchQuery
+                {
+                    Query = keyword,
+                    Fields = new[] { "title^3", "tags^2" },
+                    Fuzziness = new Fuzziness("AUTO"),
+                    Type = TextQueryType.BestFields
+                },
+                // 4) Title wildcard — substring arama garantisi
+                new WildcardQuery("title"!) { Value = $"*{lowerKeyword}*", Boost = 0.5f },
+                // 5) Tags wildcard — "dev" → "devops", "ci" → "ci-cd"
+                new WildcardQuery("tags"!) { Value = $"*{lowerKeyword}*", Boost = 0.5f }
+            },
+            MinimumShouldMatch = 1
         };
+
+        var mustQueries = new List<Query> { keywordQuery };
 
         if (type.HasValue)
         {
@@ -87,8 +105,9 @@ public class ElasticsearchService : ISearchService
 
         if (!searchResponse.IsValidResponse)
         {
-            _logger.LogWarning("Elasticsearch search failed: {Reason}", searchResponse.DebugInformation);
-            return ([], 0);
+            _logger.LogWarning("Elasticsearch araması başarısız: {Reason}", searchResponse.DebugInformation);
+            throw new InvalidOperationException(
+                $"Elasticsearch araması başarısız: {searchResponse.DebugInformation}");
         }
 
         var totalCount = (int)searchResponse.Total;
@@ -103,7 +122,12 @@ public class ElasticsearchService : ISearchService
         try
         {
             var pingResponse = await _client.PingAsync(cancellationToken);
-            return pingResponse.IsValidResponse;
+            if (!pingResponse.IsValidResponse)
+                return false;
+
+            // Sadece ping değil, index varlığını da kontrol et
+            var existsResponse = await _client.Indices.ExistsAsync(IndexName, cancellationToken);
+            return existsResponse.Exists;
         }
         catch
         {
@@ -132,7 +156,7 @@ public class ElasticsearchService : ISearchService
                     .IntegerNumber(n => n.Reactions!)
                     .IntegerNumber(n => n.Comments!)
                     .Date(d => d.PublishedAt)
-                    .Keyword(k => k.Tags)
+                    .Text(t => t.Tags, td => td.Analyzer("standard"))
                     .FloatNumber(f => f.FinalScore)
                     .Date(d => d.LastSyncedAt)
                 )),

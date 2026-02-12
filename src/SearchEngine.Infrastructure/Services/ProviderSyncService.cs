@@ -25,6 +25,7 @@ public class ProviderSyncService : ISyncService
     private readonly IContentProviderFactory _providerFactory;
     private readonly IContentScorer _scorer;
     private readonly IContentRepository _repository;
+    private readonly ISearchService _searchService;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ILogger<ProviderSyncService> _logger;
     private readonly ProviderSettings _settings;
@@ -33,6 +34,7 @@ public class ProviderSyncService : ISyncService
         IContentProviderFactory providerFactory,
         IContentScorer scorer,
         IContentRepository repository,
+        ISearchService searchService,
         IPublishEndpoint publishEndpoint,
         ILogger<ProviderSyncService> logger,
         IOptions<ProviderSettings> settings)
@@ -40,6 +42,7 @@ public class ProviderSyncService : ISyncService
         _providerFactory = providerFactory;
         _scorer = scorer;
         _repository = repository;
+        _searchService = searchService;
         _publishEndpoint = publishEndpoint;
         _logger = logger;
         _settings = settings.Value;
@@ -121,8 +124,19 @@ public class ProviderSyncService : ISyncService
 
         // Veritabanına kaydet
         await _repository.UpsertManyAsync(allContents, cancellationToken);
+        _logger.LogInformation("{Count} öğe PostgreSQL'e kaydedildi.", allContents.Count);
 
-        // Async tüketiciler için event yayınla (cache invalidation + ES reindex consumer'ları tetikler)
+        // Elasticsearch'e doğrudan indeksle (RabbitMQ bus başlamadan önce çalışan startup sync için kritik)
+        try
+        {
+            await _searchService.IndexManyAsync(allContents, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Elasticsearch indeksleme başarısız oldu. Arama PostgreSQL'e fallback yapacak.");
+        }
+
+        // Async tüketiciler için event yayınla (cache invalidation consumer'ı tetikler)
         await _publishEndpoint.Publish(new ProviderDataSyncedEvent
         {
             ItemCount = allContents.Count,

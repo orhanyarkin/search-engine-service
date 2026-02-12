@@ -32,18 +32,33 @@ public sealed class SearchContentsQueryHandler : IRequestHandler<SearchContentsQ
         List<Domain.Entities.Content> items;
         int totalCount;
 
-        // Keyword varsa ES-first, yoksa doğrudan DB
+        // Keyword varsa ES-first (hata durumunda PostgreSQL'e fallback), yoksa doğrudan DB
         if (!string.IsNullOrWhiteSpace(request.Keyword) && await _searchService.IsAvailableAsync(cancellationToken))
         {
-            _logger.LogInformation("Elasticsearch kullanılarak aranıyor: '{Keyword}'", request.Keyword);
+            try
+            {
+                _logger.LogInformation("Elasticsearch kullanılarak aranıyor: '{Keyword}'", request.Keyword);
 
-            (items, totalCount) = await _searchService.SearchAsync(
-                request.Keyword,
-                request.Type,
-                request.SortBy,
-                request.Page,
-                request.PageSize,
-                cancellationToken);
+                (items, totalCount) = await _searchService.SearchAsync(
+                    request.Keyword,
+                    request.Type,
+                    request.SortBy,
+                    request.Page,
+                    request.PageSize,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Elasticsearch araması başarısız oldu, PostgreSQL'e fallback yapılıyor.");
+
+                (items, totalCount) = await _repository.SearchAsync(
+                    request.Keyword,
+                    request.Type,
+                    request.SortBy,
+                    request.Page,
+                    request.PageSize,
+                    cancellationToken);
+            }
         }
         else
         {

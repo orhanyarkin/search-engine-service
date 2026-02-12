@@ -47,7 +47,9 @@ public class ContentRepository : IContentRepository
             SortBy.Popularity => query.OrderByDescending(c => c.FinalScore),
             SortBy.Recency => query.OrderByDescending(c => c.PublishedAt),
             SortBy.Relevance when !string.IsNullOrWhiteSpace(keyword) =>
-                query.OrderByDescending(c => c.Title.ToLower().StartsWith(keyword.ToLower()))
+                query.OrderByDescending(c => EF.Functions.ILike(c.Title, keyword + "%"))       // Başlık keyword ile başlıyor
+                     .ThenByDescending(c => EF.Functions.ILike(c.Title, "%" + keyword + "%"))  // Başlıkta keyword geçiyor
+                     .ThenByDescending(c => c.Tags.Any(t => EF.Functions.ILike(t, keyword + "%"))) // Etiket keyword ile başlıyor
                      .ThenByDescending(c => c.FinalScore),
             _ => query.OrderByDescending(c => c.FinalScore)
         };
