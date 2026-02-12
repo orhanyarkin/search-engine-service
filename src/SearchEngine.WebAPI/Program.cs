@@ -12,6 +12,7 @@ using SearchEngine.Infrastructure.Configuration;
 using SearchEngine.Infrastructure.Data;
 using SearchEngine.Infrastructure.Services;
 using SearchEngine.WebAPI.Middleware;
+using SearchEngine.WebAPI.OpenApi;
 using Serilog;
 
 // Serilog yapılandırması — CorrelationId enrichment ile
@@ -34,7 +35,10 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddControllers();
-    builder.Services.AddOpenApi();
+    builder.Services.AddOpenApi(options =>
+    {
+        options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    });
 
     // JWT kimlik doğrulama
     builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
