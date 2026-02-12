@@ -162,15 +162,9 @@ Servisler:
 - **API:** http://localhost:5000
 - **Scalar API Docs:** http://localhost:5000/scalar/v1
 - **Dashboard:** http://localhost:5000
-- **RabbitMQ Management:** http://localhost:15672 (guest/guest)
+- **RabbitMQ Management:** http://localhost:25672 (guest/guest)
 
-> **Not:** Port çakışması yaşarsanız (örn. Redis 6379 zaten kullanılıyorsa), local'de çalışan servisleri durdurun:
-> ```bash
-> # Windows
-> net stop Redis
-> # Linux/Mac
-> sudo systemctl stop redis
-> ```
+> **Not:** Infrastructure portları (PostgreSQL: 15432, Redis: 16379, ES: 19200) standart portlardan farklıdır; local'de çalışan servislerle çakışmaz. Sadece API portu (5000) kullanımdaysa `docker-compose.yml`'da değiştirebilirsiniz.
 
 ### Local Geliştirme
 
