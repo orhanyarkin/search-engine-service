@@ -9,7 +9,7 @@ Birden fazla content provider'dan (JSON & XML) veri çeken, normalize eden, weig
 | Runtime | .NET 10 (LTS) |
 | Mimari | Clean Architecture (4 katman) |
 | Veritabanı | PostgreSQL + EF Core (Code-First) |
-| Cache | Redis (L2) + IMemoryCache (L1) |
+| Cache | Redis |
 | Full-Text Search | Elasticsearch |
 | Message Broker | RabbitMQ + MassTransit |
 | Auth | JWT Bearer Token |
@@ -23,7 +23,7 @@ Birden fazla content provider'dan (JSON & XML) veri çeken, normalize eden, weig
 |-----------|--------|
 | **.NET 10** | LTS sürümü, Kestrel ile yüksek HTTP performansı, güçlü tip sistemi derleme zamanında hataları yakalar, EF Core + MediatR + FluentValidation ekosistemi backend geliştirmeyi hızlandırır |
 | **PostgreSQL** | Açık kaynak, production-grade RDBMS; `text[]` array tipi tag'ler için ideal, `EF.Functions.ILike` ile case-insensitive arama desteği, JSON/JSONB ile esnek veri modeli |
-| **Redis** | Sub-millisecond cache okuma, Decorator pattern ile repository'yi wrap ederek uygulama kodunu değiştirmeden cache katmanı ekleme imkanı; sync sonrası key-prefix bazlı invalidation |
+| **Redis** | Sub-millisecond cache okuma, Decorator pattern ile repository'yi wrap ederek uygulama kodunu değiştirmeden cache katmanı ekleme imkânı; sync sonrası key-prefix bazlı invalidation |
 | **Elasticsearch** | BM25 scoring ile keyword relevance hesaplaması, fuzzy match (yazım hataları), prefix search ve wildcard sorguları — PostgreSQL ILIKE'a göre çok daha güçlü full-text search |
 | **RabbitMQ** | Sync sonrası cache invalidation ve Elasticsearch reindex işlemlerini ana akıştan ayırarak async event-driven mimari; MassTransit ile consumer bazlı mesaj tüketimi |
 | **Clean Architecture** | Domain ve Application katmanları infrastructure'a bağımsız; yeni provider eklemek tek bir `IContentProvider` implementasyonu, test'ler infrastructure mock'larıyla izole çalışır |
@@ -72,6 +72,7 @@ tests/
 | **Decorator** | Cache layer, repository'yi wrap eder (`CachedContentRepository`) |
 | **Mediator (CQRS)** | MediatR ile command/query separation |
 | **Circuit Breaker** | `Microsoft.Extensions.Http.Resilience` ile provider HTTP call'larında resilience |
+| **Rate Limiter** | `TokenBucketRateLimiter` ile provider'lara yapılan isteklerde istek limiti yönetimi |
 | **Pipeline Behavior** | MediatR pipeline'ında validation ve logging |
 
 ## Scoring Algoritması
@@ -144,8 +145,8 @@ GET /health
 ## Kurulum ve Çalıştırma
 
 ### Gereksinimler
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Docker](https://docs.docker.com/get-docker/) ve Docker Compose
+- [Docker](https://docs.docker.com/get-docker/) ve Docker Compose (tek gereksinim — .NET SDK gerekmez)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) *(sadece local geliştirme ve test çalıştırma için)*
 
 ### Docker ile Çalıştırma (Önerilen)
 
@@ -242,11 +243,24 @@ curl http://localhost:8080/api/v1/search?keyword=docker \
 
 ## Rate Limiting
 
+### API Rate Limiting (Gelen istekler)
+
 | Policy | Limit | Window | Uygulanan Endpoint |
 |--------|-------|--------|--------------------|
 | Global | 100 request | 1 dakika (fixed window) | Tüm endpoint'ler |
 | Search | 30 request | 1 dakika (sliding window) | `/api/v1/search` |
 | Auth | 5 request | 1 dakika (fixed window) | `/api/v1/auth/*` |
+
+### Provider Rate Limiting (Giden istekler)
+
+| Parametre | Değer | Açıklama |
+|-----------|-------|----------|
+| Token kapasitesi | 10 | Kova başına maksimum istek |
+| Yenileme periyodu | 1 saniye | Token yenileme sıklığı |
+| Periyot başına token | 5 | Her saniye 5 yeni istek hakkı |
+| Kuyruk limiti | 5 | Bekleyen istek sayısı sınırı |
+
+Provider'lara yapılan HTTP isteklerinde `TokenBucketRateLimiter` kullanılır. Her iki provider (JSON ve XML) aynı paylaşımlı rate limiter'ı kullanır, böylece toplam istek yükü kontrol altında tutulur.
 
 ## Background Sync
 
@@ -256,7 +270,7 @@ Provider data sync'i iki yolla tetiklenir:
 2. **Otomatik:** `BackgroundSyncService` — uygulama başladığında ve her 30 dakikada bir çalışır
 
 Sync süreci:
-1. Provider'lardan HTTP ile veri çekilir (Circuit Breaker korumalı)
+1. Provider'lardan HTTP ile veri çekilir (Rate Limiter + Circuit Breaker + Retry korumalı)
 2. Adapter'lar ile domain model'e dönüştürülür
 3. Scoring service ile puanlanır
 4. PostgreSQL'e persist edilir
@@ -298,7 +312,7 @@ Sync süreci:
 | CORS restriction | Sadece localhost origin'lere izin |
 | Input validation | FluentValidation ile tüm request'ler validate edilir |
 | SQL injection protection | EF Core parameterized query'ler |
-| Resilience pattern | Circuit breaker, retry, timeout provider call'larında |
+| Resilience pattern | Rate limiter, circuit breaker, retry, timeout provider call'larında |
 | Docker port binding | Infrastructure port'lar sadece `127.0.0.1`'e bind |
 
 ### Production Ortam İçin Öneriler
