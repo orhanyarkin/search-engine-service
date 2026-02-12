@@ -159,12 +159,12 @@ docker-compose up --build
 ```
 
 Servisler:
-- **API:** http://localhost:5000
-- **Scalar API Docs:** http://localhost:5000/scalar/v1
-- **Dashboard:** http://localhost:5000
+- **API:** http://localhost:8080
+- **Scalar API Docs:** http://localhost:8080/scalar/v1
+- **Dashboard:** http://localhost:8080
 - **RabbitMQ Management:** http://localhost:25672 (guest/guest)
 
-> **Not:** Infrastructure portları (PostgreSQL: 15432, Redis: 16379, ES: 19200) standart portlardan farklıdır; local'de çalışan servislerle çakışmaz. Sadece API portu (5000) kullanımdaysa `docker-compose.yml`'da değiştirebilirsiniz.
+> **Not:** Tüm portlar standart portlardan farklıdır (API: 8080, PG: 15432, Redis: 16379, ES: 19200); local'de çalışan servislerle çakışmaz.
 
 ### Local Geliştirme
 
@@ -176,7 +176,7 @@ docker-compose up postgres redis elasticsearch rabbitmq -d
 dotnet run --project src/SearchEngine.WebAPI
 ```
 
-API varsayılan olarak `http://localhost:5000` adresinde çalışır.
+API varsayılan olarak `http://localhost:8080` adresinde çalışır.
 
 ## Test
 
@@ -227,14 +227,14 @@ Dashboard ve API endpoint'leri JWT Bearer token ile korunur.
 
 Token alma:
 ```bash
-curl -X POST http://localhost:5000/api/v1/auth/login \
+curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
 Token kullanma:
 ```bash
-curl http://localhost:5000/api/v1/search?keyword=docker \
+curl http://localhost:8080/api/v1/search?keyword=docker \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -266,7 +266,7 @@ Sync süreci:
 
 ## Dashboard
 
-`http://localhost:5000` adresinden erişilen minimal bir web UI:
+`http://localhost:8080` adresinden erişilen minimal bir web UI:
 
 - Login form (JWT auth)
 - Keyword search (Elasticsearch full-text)

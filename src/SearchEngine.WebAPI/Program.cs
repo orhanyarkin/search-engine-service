@@ -84,9 +84,8 @@ try
         options.AddDefaultPolicy(policy =>
         {
             policy.WithOrigins(
-                      "http://localhost:5000",
                       "http://localhost:8080",
-                      "https://localhost:5001")
+                      "https://localhost:8443")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         });
