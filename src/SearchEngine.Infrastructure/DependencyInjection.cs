@@ -57,7 +57,8 @@ public static class DependencyInjection
         {
             var settings = new ElasticsearchClientSettings(new Uri(esSettings.Url))
                 .DefaultIndex("searchengine-contents")
-                .ThrowExceptions(false);
+                .ThrowExceptions(false)
+                .RequestTimeout(TimeSpan.FromSeconds(5));
             return new ElasticsearchClient(settings);
         });
         services.AddScoped<ISearchService, ElasticsearchService>();

@@ -121,12 +121,14 @@ public class ElasticsearchService : ISearchService
     {
         try
         {
-            var pingResponse = await _client.PingAsync(cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+
+            var pingResponse = await _client.PingAsync(cts.Token);
             if (!pingResponse.IsValidResponse)
                 return false;
 
-            // Sadece ping değil, index varlığını da kontrol et
-            var existsResponse = await _client.Indices.ExistsAsync(IndexName, cancellationToken);
+            var existsResponse = await _client.Indices.ExistsAsync(IndexName, cts.Token);
             return existsResponse.Exists;
         }
         catch
