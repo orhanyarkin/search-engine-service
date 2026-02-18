@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Elastic.Clients.Elasticsearch;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -106,7 +107,18 @@ public static class DependencyInjection
         services.Configure<BackgroundSyncSettings>(configuration.GetSection("BackgroundSyncSettings"));
         services.AddHostedService<ProviderSyncBackgroundService>();
 
-        // Standart Dayaniklilik ile HttpClient'lar (Yeniden Deneme + Devre Kesici + Zaman Asimi)
+        // Provider istekleri icin paylasimli istek limiti (saniyede max 10 istek, eszamanli max 5)
+        var providerRateLimiter = new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 10,                                        // Kova kapasitesi
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),          // Token yenileme periyodu
+            TokensPerPeriod = 5,                                    // Periyot basina eklenen token
+            AutoReplenishment = true,
+            QueueLimit = 5,                                         // Kuyrukta bekleyecek max istek
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+
+        // Standart Dayaniklilik ile HttpClient'lar (Istek Limiti + Yeniden Deneme + Devre Kesici + Zaman Asimi)
         services.AddHttpClient("Provider1_JSON", client =>
         {
             client.BaseAddress = new Uri(providerSettings.Provider1Url);
@@ -114,6 +126,8 @@ public static class DependencyInjection
         })
         .AddStandardResilienceHandler(options =>
         {
+            options.RateLimiter.RateLimiter = _ =>
+                providerRateLimiter.AcquireAsync(1);
             options.Retry.MaxRetryAttempts = providerSettings.RetryCount;
             options.Retry.Delay = TimeSpan.FromSeconds(1);
             options.CircuitBreaker.FailureRatio = 0.5;
@@ -131,6 +145,8 @@ public static class DependencyInjection
         })
         .AddStandardResilienceHandler(options =>
         {
+            options.RateLimiter.RateLimiter = _ =>
+                providerRateLimiter.AcquireAsync(1);
             options.Retry.MaxRetryAttempts = providerSettings.RetryCount;
             options.Retry.Delay = TimeSpan.FromSeconds(1);
             options.CircuitBreaker.FailureRatio = 0.5;
