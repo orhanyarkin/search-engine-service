@@ -47,3 +47,9 @@ claude-code-prompts.md
 
 ## Docker output
 docker-output.txt
+
+## Case study PDF
+*.pdf
+
+## Windows artifacts
+nul

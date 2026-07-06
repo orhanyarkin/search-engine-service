@@ -1,81 +1,87 @@
+<div align="center">
+
+**English** | [Türkçe](README.tr.md)
+
+</div>
+
 # Search Engine Service
 
-Birden fazla content provider'dan (JSON & XML) veri çeken, normalize eden, weighted scoring algoritması ile puanlayan ve REST API üzerinden sunan bir search engine servisi.
+A search engine service that ingests data from multiple content providers (JSON & XML), normalizes it, ranks results with a weighted scoring algorithm, and serves them over a REST API.
 
-## Tech Stacks
+## Tech Stack
 
-| Katman | Teknoloji |
+| Layer | Technology |
 |--------|-----------|
 | Runtime | .NET 10 (LTS) |
-| Mimari | Clean Architecture (4 katman) |
-| Veritabanı | PostgreSQL + EF Core (Code-First) |
+| Architecture | Clean Architecture (4 layers) |
+| Database | PostgreSQL + EF Core (Code-First) |
 | Cache | Redis |
 | Full-Text Search | Elasticsearch |
 | Message Broker | RabbitMQ + MassTransit |
 | Auth | JWT Bearer Token |
-| Test | xUnit + Moq + FluentAssertions |
+| Testing | xUnit + Moq + FluentAssertions |
 | API Docs | OpenAPI + Scalar UI |
 | Container | Docker + docker-compose |
 
-## Teknoloji Tercih Gerekçeleri
+## Technology Decisions
 
-| Teknoloji | Neden? |
+| Technology | Why? |
 |-----------|--------|
-| **.NET 10** | Güncel olarak .NET ile geliştirme yaptığım için seçtim fakat diğer diller ve frameworkler ile de geliştirme yapılabilir. LTS sürümü, Kestrel ile yüksek HTTP performansı, güçlü tip sistemi derleme zamanında hataları yakalar, EF Core + MediatR + FluentValidation ekosistemi backend geliştirmeyi hızlandırır |
-| **PostgreSQL** | Açık kaynak, production-grade RDBMS; `text[]` array tipi tag'ler için ideal, `EF.Functions.ILike` ile case-insensitive arama desteği, JSON/JSONB ile esnek veri modeli |
-| **Redis** | Sub-millisecond cache okuma, Decorator pattern ile repository'yi wrap ederek uygulama kodunu değiştirmeden cache katmanı ekleme imkânı; sync sonrası key-prefix bazlı invalidation |
-| **Elasticsearch** | BM25 scoring ile keyword relevance hesaplaması, fuzzy match (yazım hataları), prefix search ve wildcard sorguları — PostgreSQL ILIKE'a göre çok daha güçlü full-text search |
-| **RabbitMQ** | Sync sonrası cache invalidation ve Elasticsearch reindex işlemlerini ana akıştan ayırarak async event-driven mimari; MassTransit ile consumer bazlı mesaj tüketimi |
-| **Clean Architecture** | Domain ve Application katmanları infrastructure'a bağımsız; yeni provider eklemek tek bir `IContentProvider` implementasyonu, test'ler infrastructure mock'larıyla izole çalışır |
-| **MediatR (CQRS)** | Command/Query ayrımı ile read ve write path'leri bağımsız optimize etme; pipeline behavior ile cross-cutting concern'ler (validation, logging) merkezi yönetim |
-| **Docker** | Tek komutla 5 servis (API + PostgreSQL + Redis + Elasticsearch + RabbitMQ) ayağa kalkar; development/production ortam tutarlılığı sağlar |
+| **.NET 10** | Chosen because it's my primary day-to-day stack, though the design would work in other languages/frameworks. LTS release, high HTTP throughput with Kestrel, a strong type system that catches errors at compile time, and the EF Core + MediatR + FluentValidation ecosystem speeds up backend development |
+| **PostgreSQL** | Open-source, production-grade RDBMS; the `text[]` array type is ideal for tags, `EF.Functions.ILike` provides case-insensitive search, and JSON/JSONB allows a flexible data model |
+| **Redis** | Sub-millisecond cache reads; wrapping the repository with the Decorator pattern adds a cache layer without touching application code; key-prefix based invalidation after sync |
+| **Elasticsearch** | BM25 relevance scoring, fuzzy matching (typos), prefix search and wildcard queries — far more powerful full-text search than PostgreSQL ILIKE |
+| **RabbitMQ** | Moves post-sync cache invalidation and Elasticsearch reindexing off the main flow into an async event-driven architecture; consumer-based message consumption via MassTransit |
+| **Clean Architecture** | Domain and Application layers are independent of infrastructure; adding a new provider is a single `IContentProvider` implementation, and tests run in isolation with infrastructure mocks |
+| **MediatR (CQRS)** | Command/query separation lets read and write paths be optimized independently; pipeline behaviors centralize cross-cutting concerns (validation, logging) |
+| **Docker** | A single command brings up 5 services (API + PostgreSQL + Redis + Elasticsearch + RabbitMQ); consistent development/production environments |
 
-## Mimari
+## Architecture
 
-Clean Architecture prensiplerine uygun 4 katmanlı yapı:
+A 4-layer structure following Clean Architecture principles:
 
 ```
 ┌─────────────────────────────────┐
-│         WebAPI Layer            │  ← Controller, Middleware, Dashboard
+│         WebAPI Layer            │  ← Controllers, Middleware, Dashboard
 ├─────────────────────────────────┤
-│       Application Layer         │  ← Use Case, DTO, Validator, Scoring
+│       Application Layer         │  ← Use Cases, DTOs, Validators, Scoring
 ├─────────────────────────────────┤
 │      Infrastructure Layer       │  ← EF Core, Redis, ES, RabbitMQ, HTTP Client
 ├─────────────────────────────────┤
-│         Domain Layer            │  ← Entity, Enum, Interface, Value Object
+│         Domain Layer            │  ← Entities, Enums, Interfaces, Value Objects
 └─────────────────────────────────┘
 ```
 
-Dependency kuralı: iç katmanlar dış katmanlara bağımlı değil. Infrastructure ve WebAPI, Domain ve Application'a depend eder.
+Dependency rule: inner layers never depend on outer layers. Infrastructure and WebAPI depend on Domain and Application.
 
-## Proje Yapısı
+## Project Structure
 
 ```
 src/
-├── SearchEngine.Domain/            # Entity, Enum, Interface, Value Object
-├── SearchEngine.Application/       # Use Case, DTO, Validator, Scoring Service
-├── SearchEngine.Infrastructure/    # EF Core, Provider Client, Redis, ES, RabbitMQ
-├── SearchEngine.WebAPI/            # Controller, Middleware, Dashboard (wwwroot)
+├── SearchEngine.Domain/            # Entities, Enums, Interfaces, Value Objects
+├── SearchEngine.Application/       # Use Cases, DTOs, Validators, Scoring Service
+├── SearchEngine.Infrastructure/    # EF Core, Provider Clients, Redis, ES, RabbitMQ
+├── SearchEngine.WebAPI/            # Controllers, Middleware, Dashboard (wwwroot)
 tests/
-├── SearchEngine.UnitTests/         # Domain + Application layer test'leri
-├── SearchEngine.IntegrationTests/  # API integration test'leri
+├── SearchEngine.UnitTests/         # Domain + Application layer tests
+├── SearchEngine.IntegrationTests/  # API integration tests
 ```
 
-## Design Pattern'ler
+## Design Patterns
 
-| Pattern | Kullanım |
+| Pattern | Usage |
 |---------|----------|
-| **Strategy** | `IContentProvider` interface — her provider kendi implementasyonuna sahip |
-| **Factory** | `ContentProviderFactory` — provider type'a göre doğru instance'ı oluşturur |
-| **Adapter** | Her provider adapter'ı external format'ı internal domain model'e dönüştürür |
-| **Repository** | `IContentRepository` — data access abstraction'ı |
-| **Decorator** | Cache layer, repository'yi wrap eder (`CachedContentRepository`) |
-| **Mediator (CQRS)** | MediatR ile command/query separation |
-| **Circuit Breaker** | `Microsoft.Extensions.Http.Resilience` ile provider HTTP call'larında resilience |
-| **Rate Limiter** | `TokenBucketRateLimiter` ile provider'lara yapılan isteklerde istek limiti yönetimi |
-| **Pipeline Behavior** | MediatR pipeline'ında validation ve logging |
+| **Strategy** | `IContentProvider` interface — each provider has its own implementation |
+| **Factory** | `ContentProviderFactory` — creates the right instance based on provider type |
+| **Adapter** | Each provider adapter converts the external format into the internal domain model |
+| **Repository** | `IContentRepository` — data access abstraction |
+| **Decorator** | The cache layer wraps the repository (`CachedContentRepository`) |
+| **Mediator (CQRS)** | Command/query separation via MediatR |
+| **Circuit Breaker** | Resilience on provider HTTP calls via `Microsoft.Extensions.Http.Resilience` |
+| **Rate Limiter** | Outbound request throttling toward providers via `TokenBucketRateLimiter` |
+| **Pipeline Behavior** | Validation and logging in the MediatR pipeline |
 
-## Scoring Algoritması
+## Scoring Algorithm
 
 ```
 FinalScore = (BaseScore × TypeCoefficient) + FreshnessScore + EngagementScore
@@ -90,28 +96,28 @@ FinalScore = (BaseScore × TypeCoefficient) + FreshnessScore + EngagementScore
 - **Text/Article:** 1.0
 
 ### Freshness Score (publish date → now)
-| Süre | Puan |
+| Age | Points |
 |------|------|
-| 1 hafta içinde | +5 |
-| 1 ay içinde | +3 |
-| 3 ay içinde | +1 |
-| Daha eski | +0 |
+| Within 1 week | +5 |
+| Within 1 month | +3 |
+| Within 3 months | +1 |
+| Older | +0 |
 
 ### Engagement Score
 - **Video:** `(likes / views) × 10`
 - **Text/Article:** `(reactions / reading_time) × 5`
 
-## API Endpoint'leri
+## API Endpoints
 
 ### Search
 ```http
 GET /api/v1/search?keyword={keyword}&type={video|text}&sortBy={popularity|relevance|recency}&page=1&pageSize=10
 ```
 
-Query parameter'lar:
-- `keyword` — arama terimi (title ve tag'lerde arar)
-- `type` — içerik tipi filtresi: `video` veya `text`
-- `sortBy` — sıralama: `popularity` (varsayılan), `relevance` veya `recency`
+Query parameters:
+- `keyword` — search term (matched against titles and tags)
+- `type` — content type filter: `video` or `text`
+- `sortBy` — sorting: `popularity` (default), `relevance` or `recency`
 - `page` / `pageSize` — pagination
 
 ### Content Detail
@@ -119,7 +125,7 @@ Query parameter'lar:
 GET /api/v1/contents/{id}
 ```
 
-### Provider Sync (Manuel)
+### Provider Sync (Manual)
 ```http
 GET /api/v1/providers/sync
 ```
@@ -135,194 +141,194 @@ Content-Type: application/json
 }
 ```
 
-Response'taki JWT token'ı `Authorization: Bearer {token}` header'ında kullanın.
+Use the JWT token from the response in the `Authorization: Bearer {token}` header.
 
 ### Health Check
 ```http
 GET /health
 ```
 
-## Kurulum ve Çalıştırma
+## Setup & Running
 
-### Gereksinimler
-- [Docker](https://docs.docker.com/get-docker/) ve Docker Compose (tek gereksinim — .NET SDK gerekmez)
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) *(sadece local geliştirme ve test çalıştırma için)*
+### Requirements
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose (the only requirement — no .NET SDK needed)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) *(only for local development and running tests)*
 
-### Docker ile Çalıştırma (Önerilen)
+### Running with Docker (Recommended)
 
 ```bash
-# Repo'yu klonla
+# Clone the repo
 git clone https://github.com/orhanyarkin/search-engine-service.git
 cd search-engine-service
 
-# Tüm servisleri ayağa kaldır
+# Bring up all services
 docker-compose up --build
 ```
 
-Servisler:
+Services:
 - **API:** http://localhost:8080
 - **Scalar API Docs:** http://localhost:8080/scalar/v1
 - **Dashboard:** http://localhost:8080
 - **RabbitMQ Management:** http://localhost:25672 (guest/guest)
 
-> **Not:** Tüm portlar standart portlardan farklıdır (API: 8080, PG: 15432, Redis: 16379, ES: 19200); local'de çalışan servislerle çakışmaz.
+> **Note:** All ports differ from the defaults (API: 8080, PG: 15432, Redis: 16379, ES: 19200), so they won't clash with services already running locally.
 
-### Local Geliştirme
+### Local Development
 
 ```bash
-# Infrastructure servislerini ayağa kaldır (PostgreSQL, Redis, ES, RabbitMQ)
+# Bring up infrastructure services (PostgreSQL, Redis, ES, RabbitMQ)
 docker-compose up postgres redis elasticsearch rabbitmq -d
 
-# API'yi çalıştır
+# Run the API
 dotnet run --project src/SearchEngine.WebAPI
 ```
 
-API varsayılan olarak `http://localhost:8080` adresinde çalışır.
+The API runs at `http://localhost:8080` by default.
 
-## Test
+## Testing
 
-### Test'leri Çalıştırma
+### Running Tests
 
 ```bash
-# Tüm test'leri çalıştır
+# Run all tests
 dotnet test
 
-# Sadece unit test'ler
+# Unit tests only
 dotnet test tests/SearchEngine.UnitTests
 
-# Sadece integration test'ler
+# Integration tests only
 dotnet test tests/SearchEngine.IntegrationTests
 ```
 
 ### Test Coverage
 
-| Kategori | Test Sayısı | Kapsam |
+| Category | Test Count | Scope |
 |----------|-------------|--------|
-| Unit Test'ler | 65 | Scoring, Adapter, Handler, Validator, Factory, Cache |
-| Integration Test'ler | 19 | API endpoint, Auth, Search, Sync, Health |
-| **Toplam** | **84** | |
+| Unit Tests | 65 | Scoring, Adapters, Handlers, Validators, Factory, Cache |
+| Integration Tests | 19 | API endpoints, Auth, Search, Sync, Health |
+| **Total** | **84** | |
 
-#### Unit Test Detayı
-- `ScoringServiceTests` — Video ve article scoring hesaplamaları, freshness, engagement
-- `ContentProviderAdapterTests` — JSON ve XML provider adapter'ları
-- `SearchContentsHandlerTests` — Search query handler logic'i
-- `SyncProvidersHandlerTests` — Provider sync handler'ı
-- `GetContentByIdHandlerTests` — Content detail handler'ı
-- `ContentProviderFactoryTests` — Provider factory pattern
-- `ValidationTests` — FluentValidation kuralları
+#### Unit Test Details
+- `ScoringServiceTests` — video and article score calculations, freshness, engagement
+- `ContentProviderAdapterTests` — JSON and XML provider adapters
+- `SearchContentsHandlerTests` — search query handler logic
+- `SyncProvidersHandlerTests` — provider sync handler
+- `GetContentByIdHandlerTests` — content detail handler
+- `ContentProviderFactoryTests` — provider factory pattern
+- `ValidationTests` — FluentValidation rules
 
-#### Integration Test Detayı
-- `SearchEndpointTests` — Keyword search, type filter, pagination, sorting
-- `ContentEndpointTests` — Content detail, 404 handling
-- `SyncEndpointTests` — Provider sync trigger
-- `AuthEndpointTests` — Login, token validation, unauthorized access
-- `HealthCheckTests` — Health endpoint
+#### Integration Test Details
+- `SearchEndpointTests` — keyword search, type filter, pagination, sorting
+- `ContentEndpointTests` — content detail, 404 handling
+- `SyncEndpointTests` — provider sync trigger
+- `AuthEndpointTests` — login, token validation, unauthorized access
+- `HealthCheckTests` — health endpoint
 
 ## Authentication (JWT)
 
-Dashboard ve API endpoint'leri JWT Bearer token ile korunur.
+The dashboard and API endpoints are protected with JWT Bearer tokens.
 
 **Demo credentials:**
 - Username: `admin`
 - Password: `admin123`
 
-Token alma:
+Getting a token:
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
-Token kullanma:
+Using the token:
 ```bash
 curl http://localhost:8080/api/v1/search?keyword=docker \
   -H "Authorization: Bearer {token}"
 ```
 
-> **Not:** Demo credential'lar `appsettings.json`'da tanımlıdır. Production ortamda environment variable ile override edilmelidir.
+> **Note:** Demo credentials are defined in `appsettings.json`. In production they should be overridden via environment variables.
 
 ## Rate Limiting
 
-### API Rate Limiting (Gelen istekler)
+### API Rate Limiting (Inbound requests)
 
-| Policy | Limit | Window | Uygulanan Endpoint |
+| Policy | Limit | Window | Applied Endpoints |
 |--------|-------|--------|--------------------|
-| Global | 100 request | 1 dakika (fixed window) | Tüm endpoint'ler |
-| Search | 30 request | 1 dakika (sliding window) | `/api/v1/search` |
-| Auth | 5 request | 1 dakika (fixed window) | `/api/v1/auth/*` |
+| Global | 100 requests | 1 minute (fixed window) | All endpoints |
+| Search | 30 requests | 1 minute (sliding window) | `/api/v1/search` |
+| Auth | 5 requests | 1 minute (fixed window) | `/api/v1/auth/*` |
 
-### Provider Rate Limiting (Giden istekler)
+### Provider Rate Limiting (Outbound requests)
 
-| Parametre | Değer | Açıklama |
+| Parameter | Value | Description |
 |-----------|-------|----------|
-| Token kapasitesi | 10 | Kova başına maksimum istek |
-| Yenileme periyodu | 1 saniye | Token yenileme sıklığı |
-| Periyot başına token | 5 | Her saniye 5 yeni istek hakkı |
-| Kuyruk limiti | 5 | Bekleyen istek sayısı sınırı |
+| Token capacity | 10 | Maximum requests per bucket |
+| Replenishment period | 1 second | Token refill frequency |
+| Tokens per period | 5 | 5 new request slots every second |
+| Queue limit | 5 | Cap on queued requests |
 
-Provider'lara yapılan HTTP isteklerinde `TokenBucketRateLimiter` kullanılır. Her iki provider (JSON ve XML) aynı paylaşımlı rate limiter'ı kullanır, böylece toplam istek yükü kontrol altında tutulur.
+HTTP requests toward providers go through a `TokenBucketRateLimiter`. Both providers (JSON and XML) share the same rate limiter, keeping the total outbound load under control.
 
 ## Background Sync
 
-Provider data sync'i iki yolla tetiklenir:
+Provider data sync is triggered in two ways:
 
-1. **Manuel:** `GET /api/v1/providers/sync` endpoint'i
-2. **Otomatik:** `BackgroundSyncService` — uygulama başladığında ve her 30 dakikada bir çalışır
+1. **Manual:** the `GET /api/v1/providers/sync` endpoint
+2. **Automatic:** `BackgroundSyncService` — runs on application startup and every 30 minutes
 
-Sync süreci:
-1. Provider'lardan HTTP ile veri çekilir (Rate Limiter + Circuit Breaker + Retry korumalı)
-2. Adapter'lar ile domain model'e dönüştürülür
-3. Scoring service ile puanlanır
-4. PostgreSQL'e persist edilir
-5. Redis cache invalidate edilir
-6. RabbitMQ üzerinden `ContentsSyncedEvent` publish edilir
-7. Elasticsearch index'i güncellenir
+Sync flow:
+1. Data is fetched from providers over HTTP (protected by Rate Limiter + Circuit Breaker + Retry)
+2. Adapters convert it into the domain model
+3. The scoring service computes scores
+4. Data is persisted to PostgreSQL
+5. The Redis cache is invalidated
+6. A `ContentsSyncedEvent` is published via RabbitMQ
+7. The Elasticsearch index is updated
 
 ## Dashboard
 
-`http://localhost:8080` adresinden erişilen minimal bir web UI:
+A minimal web UI available at `http://localhost:8080`:
 
 - Login form (JWT auth)
 - Keyword search (Elasticsearch full-text)
-- Type filter (Video / Makale / Tümü)
-- Sort (Popülerlik / İlgililik / En Yeni)
+- Type filter (Video / Article / All)
+- Sort (Popularity / Relevance / Newest)
 - Pagination
-- Content card'ları (score, type, metrics, tags)
-- Manuel sync butonu
-- Toast bildirimler
+- Content cards (score, type, metrics, tags)
+- Manual sync button
+- Toast notifications
 
-## Clean Code Yaklaşımı
+## Clean Code Approach
 
-- **SOLID prensipleri** — Her class tek sorumluluk, dependency injection ile loose coupling
-- **DRY** — Ortak logic service ve extension method'larda
-- **Async/await** — Tüm I/O operasyonları asenkron
-- **DTO pattern** — Domain entity'ler hiçbir zaman dışarıya expose edilmez
-- **Nullable reference types** — Tüm projelerde enable
-- **Structured logging** — Serilog ile console ve file sink
-- **FluentValidation** — Request validation pipeline behavior ile
-- **Global exception handling** — Middleware ile merkezi hata yönetimi
+- **SOLID principles** — single responsibility per class, loose coupling via dependency injection
+- **DRY** — shared logic lives in services and extension methods
+- **Async/await** — all I/O operations are asynchronous
+- **DTO pattern** — domain entities are never exposed externally
+- **Nullable reference types** — enabled across all projects
+- **Structured logging** — Serilog with console and file sinks
+- **FluentValidation** — request validation via pipeline behavior
+- **Global exception handling** — centralized error handling via middleware
 
-## Güvenlik
+## Security
 
-| Önlem | Detay |
+| Measure | Detail |
 |-------|-------|
-| JWT Bearer auth | HS256 signed token, 1 saat expiry |
-| Rate limiting | Global, search ve auth endpoint'lerinde ayrı policy'ler |
-| Security header'lar | X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-XSS-Protection |
-| CORS restriction | Sadece localhost origin'lere izin |
-| Input validation | FluentValidation ile tüm request'ler validate edilir |
-| SQL injection protection | EF Core parameterized query'ler |
-| Resilience pattern | Rate limiter, circuit breaker, retry, timeout provider call'larında |
-| Docker port binding | Infrastructure port'lar sadece `127.0.0.1`'e bind |
+| JWT Bearer auth | HS256-signed tokens, 1-hour expiry |
+| Rate limiting | Separate policies for global, search and auth endpoints |
+| Security headers | X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-XSS-Protection |
+| CORS restriction | Only localhost origins allowed |
+| Input validation | All requests validated with FluentValidation |
+| SQL injection protection | EF Core parameterized queries |
+| Resilience patterns | Rate limiter, circuit breaker, retry and timeout on provider calls |
+| Docker port binding | Infrastructure ports bound to `127.0.0.1` only |
 
-### Production Ortam İçin Öneriler
+### Recommendations for Production
 
-| Alan | Öneri |
+| Area | Recommendation |
 |------|-------|
-| JWT Secret | Environment variable ile inject edin, minimum 32 karakter |
-| Credential'lar | Identity provider (OAuth2/OIDC) veya secret manager kullanın |
-| HTTPS | Reverse proxy (nginx/traefik) arkasında TLS termination |
-| Logging | Serilog Seq/Elasticsearch sink + Kibana dashboard |
-| Monitoring | Prometheus + Grafana ile metric toplama |
+| JWT Secret | Inject via environment variable, minimum 32 characters |
+| Credentials | Use an identity provider (OAuth2/OIDC) or a secret manager |
+| HTTPS | TLS termination behind a reverse proxy (nginx/traefik) |
+| Logging | Serilog Seq/Elasticsearch sink + Kibana dashboards |
+| Monitoring | Metric collection with Prometheus + Grafana |
 | Rate Limiting | Redis-backed distributed rate limiter |
-| CORS | Production domain'leri explicit olarak tanımlayın |
+| CORS | Explicitly define production domains |
